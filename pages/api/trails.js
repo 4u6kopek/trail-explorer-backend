@@ -1,6 +1,6 @@
 import { connectToDatabase } from "../../lib/connectToDatabase.js";
 import Cors from 'cors';
-import { ObjectId } from 'mongodb'
+import { ObjectId } from 'mongodb';
 
 // Initialize CORS middleware
 const cors = Cors({
@@ -34,25 +34,65 @@ export default async function handler(req, res) {
   const collection = db.collection("trails");
 
   try {
-    // GET all trails
-    if (req.method === 'GET') {
-      const trails = await collection.find({}).toArray();
+    // GET all trails (returns brief version)
+    if (req.method === 'GET' && !req.query.id) {
+      const trails = await collection.find({}, {
+        projection: {
+          name: 1,
+          briefDescription: 1,
+          location: 1,
+          difficulty: 1,
+          length: 1,
+          duration: 1,
+          likes: 1,
+          image: 1,
+          createdAt: 1,
+          userId: 1
+        }
+      }).toArray();
+      
       return res.status(200).json(trails);
+    }
+
+    // GET single trail (full details)
+    if (req.method === 'GET' && req.query.id) {
+      const trail = await collection.findOne({ 
+        _id: new ObjectId(req.query.id) 
+      });
+      
+      if (!trail) {
+        return res.status(404).json({ error: "Trail not found" });
+      }
+      return res.status(200).json(trail);
     }
 
     // POST new trail
     if (req.method === 'POST') {
-      const { name, description, userId } = req.body;
+      const { name, fullDescription, location, difficulty, length, duration, userId } = req.body;
       
-      if (!name || !description || !userId) {
+      // Validate required fields
+      if (!name || !fullDescription || !location || !difficulty || !length || !duration || !userId) {
         return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Validate difficulty
+      const validDifficulties = ['easy', 'moderate', 'hard'];
+      if (!validDifficulties.includes(difficulty)) {
+        return res.status(400).json({ error: "Invalid difficulty level" });
       }
 
       const newTrail = {
         name,
-        description,
-        image: req.body.image || "/img-1.jpg",
+        fullDescription,
+        briefDescription: fullDescription.length > 100 
+          ? `${fullDescription.substring(0, 100)}...` 
+          : fullDescription,
+        location,
+        difficulty,
+        length: parseFloat(length), // Ensure it's a number
+        duration: parseFloat(duration), // Ensure it's a number
         likes: 0,
+        image: req.body.image || "/img-default.jpg",
         userId,
         createdAt: new Date()
       };
@@ -64,7 +104,7 @@ export default async function handler(req, res) {
     // PUT update trail
     if (req.method === 'PUT') {
       const { id } = req.query;
-      const { name, description, userId } = req.body;
+      const { name, fullDescription, location, difficulty, length, duration, userId } = req.body;
 
       const trail = await collection.findOne({ _id: new ObjectId(id) });
       
@@ -79,7 +119,16 @@ export default async function handler(req, res) {
       const updatedTrail = {
         ...trail,
         name: name || trail.name,
-        description: description || trail.description,
+        fullDescription: fullDescription || trail.fullDescription,
+        briefDescription: fullDescription 
+          ? (fullDescription.length > 100 
+              ? `${fullDescription.substring(0, 100)}...` 
+              : fullDescription)
+          : trail.briefDescription,
+        location: location || trail.location,
+        difficulty: difficulty || trail.difficulty,
+        length: length ? parseFloat(length) : trail.length,
+        duration: duration ? parseFloat(duration) : trail.duration,
         image: req.body.image || trail.image
       };
 
@@ -115,6 +164,9 @@ export default async function handler(req, res) {
 
   } catch (e) {
     console.error("Error:", e);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ 
+      error: "Internal server error",
+      details: process.env.NODE_ENV === 'development' ? e.message : undefined
+    });
   }
 }
