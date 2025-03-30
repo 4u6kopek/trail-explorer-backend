@@ -9,7 +9,8 @@
     "mongodb": "^6.5.0",
     "next": "latest",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "vercel": "^41.4.1"
   },
   "devDependencies": {
     "@types/node": "^20",
