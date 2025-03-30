@@ -1,10 +1,31 @@
 import { connectToDatabase } from "../../lib/connectToDatabase.js";
+import Cors from 'cors';
+
+// Initialize CORS middleware
+const cors = Cors({
+    origin: '*', // Replace with your frontend URL in production
+    methods: ['GET, POST, PUT, DELETE, OPTIONS'],
+});
+
+// Helper to run middleware in Next.js/Vercel
+function runMiddleware(req, res, fn) {
+    return new Promise((resolve, reject) => {
+        fn(req, res, (result) => {
+            if (result instanceof Error) {
+                return reject(result);
+            }
+            return resolve(result);
+        });
+    });
+}
 
 export default async function handler(req, res) {
+    // Run CORS middleware
+    await runMiddleware(req, res, cors);
+
     try {
         const { db } = await connectToDatabase();
         const collection = db.collection("trails");
-
         const results = await collection.find({}).project({
             name: 1,
             description: 1,
