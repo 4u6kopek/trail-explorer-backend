@@ -20,9 +20,7 @@ async function runMiddleware(req, res, fn) {
 export default async function handler(req, res) {
   await runMiddleware(req, res, cors);
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { db } = await connectToDatabase();
   const collection = db.collection("trails");
@@ -33,7 +31,7 @@ export default async function handler(req, res) {
       const trails = await collection.find({}, {
         projection: {
           name: 1,
-          briefDescription: 1,
+          description: 1,
           location: 1,
           difficulty: 1,
           length: 1,
@@ -49,18 +47,16 @@ export default async function handler(req, res) {
 
     // GET single trail
     if (req.method === 'GET' && req.query.id) {
-      const trail = await collection.findOne({
-        _id: new ObjectId(req.query.id)
-      });
+      const trail = await collection.findOne({ _id: new ObjectId(req.query.id) });
       if (!trail) return res.status(404).json({ error: "Trail not found" });
       return res.status(200).json(trail);
     }
 
     // POST new trail
     if (req.method === 'POST') {
-      const { name, fullDescription, location, difficulty, length, duration, userId, imageUrl } = req.body;
+      const { name, description, location, difficulty, length, duration, userId, imageUrl } = req.body;
 
-      if (!name || !fullDescription || !location || !difficulty || !length || !duration || !userId) {
+      if (!name || !description || !location || !difficulty || !length || !duration || !userId) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -75,10 +71,7 @@ export default async function handler(req, res) {
 
       const newTrail = {
         name,
-        fullDescription,
-        briefDescription: fullDescription.length > 100
-          ? `${fullDescription.substring(0, 100)}...`
-          : fullDescription,
+        description,
         location,
         difficulty,
         length: parseFloat(length),
@@ -96,25 +89,16 @@ export default async function handler(req, res) {
     // PUT update trail
     if (req.method === 'PUT') {
       const { id } = req.query;
-      const { name, fullDescription, location, difficulty, length, duration, userId, imageUrl } = req.body;
+      const { name, description, location, difficulty, length, duration, userId, imageUrl } = req.body;
 
       const trail = await collection.findOne({ _id: new ObjectId(id) });
       if (!trail) return res.status(404).json({ error: "Trail not found" });
       if (trail.userId !== userId) return res.status(403).json({ error: "Unauthorized" });
 
-      if (imageUrl && !imageUrl.startsWith('http')) {
-        return res.status(400).json({ error: "Invalid image URL" });
-      }
-
       const updatedTrail = {
         ...trail,
         name: name || trail.name,
-        fullDescription: fullDescription || trail.fullDescription,
-        briefDescription: fullDescription
-          ? (fullDescription.length > 100
-            ? `${fullDescription.substring(0, 100)}...`
-            : fullDescription)
-          : trail.briefDescription,
+        description: description || trail.description,
         location: location || trail.location,
         difficulty: difficulty || trail.difficulty,
         length: length ? parseFloat(length) : trail.length,
