@@ -4,7 +4,7 @@ import { ObjectId } from 'mongodb';
 
 const cors = Cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 });
 
@@ -24,10 +24,11 @@ export default async function handler(req, res) {
 
   const { db } = await connectToDatabase();
   const collection = db.collection("trails");
+  const usersCollection = db.collection("users");
 
   try {
     // GET all trails
-    if (req.method === 'GET' && !req.query.id) {
+    if (req.method === 'GET' && !req.query.id && !req.query.userId && !req.query.savedBy) {
       const trails = await collection.find({}, {
         projection: {
           name: 1,
@@ -39,9 +40,22 @@ export default async function handler(req, res) {
           likes: 1,
           imageUrl: 1,
           createdAt: 1,
-          userId: 1
+          userId: 1,
+          savedBy: 1
         }
       }).toArray();
+      return res.status(200).json(trails);
+    }
+
+    // GET trails by user ID
+    if (req.method === 'GET' && req.query.userId) {
+      const trails = await collection.find({ userId: req.query.userId }).toArray();
+      return res.status(200).json(trails);
+    }
+
+    // GET trails saved by user
+    if (req.method === 'GET' && req.query.savedBy) {
+      const trails = await collection.find({ savedBy: req.query.savedBy }).toArray();
       return res.status(200).json(trails);
     }
 
@@ -79,10 +93,19 @@ export default async function handler(req, res) {
         likes: 0,
         imageUrl: imageUrl || "/images/img-1.jpg",
         userId,
+        savedBy: [],
         createdAt: new Date()
       };
 
       const result = await collection.insertOne(newTrail);
+
+      // Update user's trails count
+      await usersCollection.updateOne(
+        { _id: userId },
+        { $inc: { trailsCount: 1 } },
+        { upsert: true }
+      );
+
       return res.status(201).json({ ...newTrail, _id: result.insertedId });
     }
 
@@ -113,6 +136,42 @@ export default async function handler(req, res) {
       return res.status(200).json(updatedTrail);
     }
 
+    // PATCH save/unsave trail
+    if (req.method === 'PATCH' && req.query.action === 'save') {
+      const { trailId, userId } = req.body;
+
+      if (!trailId || !userId) {
+        return res.status(400).json({ error: "Missing trailId or userId" });
+      }
+
+      const trail = await collection.findOne({ _id: new ObjectId(trailId) });
+      if (!trail) return res.status(404).json({ error: "Trail not found" });
+
+      const isSaved = trail.savedBy?.includes(userId);
+      const updateOperation = isSaved
+        ? { $pull: { savedBy: userId } }
+        : { $push: { savedBy: userId } };
+
+      await collection.updateOne(
+        { _id: new ObjectId(trailId) },
+        updateOperation
+      );
+
+      // Update user's saved trails
+      await usersCollection.updateOne(
+        { _id: userId },
+        isSaved
+          ? { $pull: { savedTrails: trailId } }
+          : { $push: { savedTrails: trailId } },
+        { upsert: true }
+      );
+
+      return res.status(200).json({
+        message: isSaved ? "Trail unsaved" : "Trail saved",
+        isSaved: !isSaved
+      });
+    }
+
     // DELETE trail
     if (req.method === 'DELETE') {
       const { id, userId } = req.query;
@@ -121,6 +180,13 @@ export default async function handler(req, res) {
       if (trail.userId !== userId) return res.status(403).json({ error: "Unauthorized" });
 
       await collection.deleteOne({ _id: new ObjectId(id) });
+
+      // Update user's trails count
+      await usersCollection.updateOne(
+        { _id: userId },
+        { $inc: { trailsCount: -1 } }
+      );
+
       return res.status(200).json({ message: "Trail deleted" });
     }
 
