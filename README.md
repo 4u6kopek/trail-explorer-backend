@@ -3,7 +3,7 @@
 ### _Powering adventure discovery with a robust API_
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed-Vercel-black?style=for-the-badge&logo=vercel)](https://trail-explorer-backend.vercel.app)  
-[![Frontend Repo](https://img.shields.io/badge/Frontend-GitHub-24292e?style=for-the-badge&logo=github)](https://github.com/4u6kopek/trail-explorer)
+[![Frontend Repo](https://img.shields.io/badge/Frontend-GitHub-24292e?style=for-the-badge&logo=github)](https://github.com/4u6kopek/TrailExplorer)
 
 ---
 
