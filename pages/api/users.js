@@ -4,7 +4,7 @@ import { ObjectId } from 'mongodb';
 
 const cors = Cors({
     origin: '*',
-    methods: ['GET', 'PATCH', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 });
 
@@ -27,6 +27,52 @@ export default async function handler(req, res) {
     const trailsCollection = db.collection("trails");
 
     try {
+        // POST - Create new user (for registration)
+        if (req.method === 'POST') {
+            const { _id, username, email } = req.body;
+
+            // Validate required fields
+            if (!_id || !username || !email) {
+                return res.status(400).json({ error: "Missing required fields" });
+            }
+
+            // Check for existing user
+            const existingUser = await usersCollection.findOne({
+                $or: [
+                    { _id },
+                    { email },
+                    { username }
+                ]
+            });
+
+            if (existingUser) {
+                return res.status(409).json({
+                    error: existingUser._id === _id
+                        ? "User already exists"
+                        : existingUser.email === email
+                            ? "Email already in use"
+                            : "Username taken"
+                });
+            }
+
+            // Create new user document
+            const newUser = {
+                _id,
+                username,
+                email,
+                avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`,
+                trailsCount: 0,
+                savedTrails: [],
+                createdAt: new Date()
+            };
+
+            const result = await usersCollection.insertOne(newUser);
+            return res.status(201).json({
+                ...newUser,
+                _id: result.insertedId
+            });
+        }
+
         // GET user profile (with populated saved trails)
         if (req.method === 'GET' && req.query.id) {
             const userId = req.query.id;
@@ -87,10 +133,12 @@ export default async function handler(req, res) {
                 return res.status(400).json({ error: "User ID is required" });
             }
 
+            // Validate username
             if (username && username.length < 3) {
                 return res.status(400).json({ error: "Username must be at least 3 characters" });
             }
 
+            // Validate avatar URL
             if (avatarUrl && !avatarUrl.startsWith('http')) {
                 return res.status(400).json({ error: "Invalid avatar URL" });
             }
@@ -101,14 +149,12 @@ export default async function handler(req, res) {
 
             const result = await usersCollection.updateOne(
                 { _id: id },
-                { $set: updates },
-                { upsert: true } // Create profile if it doesn't exist
+                { $set: updates }
             );
 
             return res.status(200).json({
                 message: "Profile updated",
-                updated: result.modifiedCount > 0,
-                upserted: result.upsertedCount > 0
+                updated: result.modifiedCount > 0
             });
         }
 
