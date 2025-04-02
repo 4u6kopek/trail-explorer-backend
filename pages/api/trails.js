@@ -149,8 +149,14 @@ export default async function handler(req, res) {
 
       const isSaved = trail.savedBy?.includes(userId);
       const updateOperation = isSaved
-        ? { $pull: { savedBy: userId } }
-        : { $push: { savedBy: userId } };
+        ? {
+          $pull: { savedBy: userId },
+          $inc: { likes: -1 }
+        }
+        : {
+          $push: { savedBy: userId },
+          $inc: { likes: 1 }
+        };
 
       await collection.updateOne(
         { _id: new ObjectId(trailId) },
@@ -166,9 +172,12 @@ export default async function handler(req, res) {
         { upsert: true }
       );
 
+      const updatedTrail = await collection.findOne({ _id: new ObjectId(trailId) });
+
       return res.status(200).json({
         message: isSaved ? "Trail unsaved" : "Trail saved",
-        isSaved: !isSaved
+        isSaved: !isSaved,
+        likes: updatedTrail.likes
       });
     }
 
