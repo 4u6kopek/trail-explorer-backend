@@ -84,17 +84,43 @@ export default async function handler(req, res) {
             // Convert savedTrails IDs to ObjectId
             const savedTrailIds = user.savedTrails?.map(id => new ObjectId(id)) || [];
 
-            // Get full details of saved trails (using $in operator)
+            // Get full details of both created and saved trails
             const [createdTrails, savedTrails] = await Promise.all([
                 trailsCollection.find(
                     { userId: userId },
-                    { projection: { name: 1, imageUrl: 1, difficulty: 1, length: 1 } }
+                    {
+                        projection: {
+                            name: 1,
+                            description: 1,
+                            location: 1,
+                            difficulty: 1,
+                            length: 1,
+                            duration: 1,
+                            likes: 1,
+                            imageUrl: 1,
+                            userId: 1,
+                            createdAt: 1
+                        }
+                    }
                 ).toArray(),
 
                 savedTrailIds.length > 0
                     ? trailsCollection.find(
                         { _id: { $in: savedTrailIds } },
-                        { projection: { name: 1, imageUrl: 1, difficulty: 1, length: 1 } }
+                        {
+                            projection: {
+                                name: 1,
+                                description: 1,
+                                location: 1,
+                                difficulty: 1,
+                                length: 1,
+                                duration: 1,
+                                likes: 1,
+                                imageUrl: 1,
+                                userId: 1,
+                                createdAt: 1
+                            }
+                        }
                     ).toArray()
                     : []
             ]);
